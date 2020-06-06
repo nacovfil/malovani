@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Malování</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        canvas {
+            position: fixed;
+            z-index: -1;
+        }
+
+        footer {
+            width: 100%;
+            height: 5%;
+            background-color: lightblue;
+        }
+
+        .draw-place {
+            width: 100%;
+            height: 83%;
+        }
+
+        .label {
+            padding-right: 5px;
+            padding-left: 5px;
+        }
+
+        button .selected {
+            background-color: black;
+            color: white;
+        }
+
+        .selected {
+            background-color: grey;
+        }
+
+        button:hover {
+            transform-origin: 0 0;
+            transform: rotate(4deg);
+        }
+
+        .helpdiv {
+            display: none;
+            z-index: 500;
+            border: 1px solid black;
+            border-style: dotted;
+        }
+
+        header {
+            width: 100%;
+            display: flex;
+            flex-direction: row;
+            background-color: lightblue;
+            height: 12%;
+        }
+
+        #fillNoneCheckbox {
+            transition: all 3s;
+        }
+        #fillNoneCheckbox:checked {
+            margin-left: 30px;
+        }
+        
+
+        .menu-button {
+            margin: 3px;
+            width: 60px;
+            height: 60px;
+        }
+
+        .draw-technics-box {
+            border-left: 1px solid black;
+            padding: 5px;
+            justify-items: center;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .draw-technics {
+            display: flex;
+            flex-direction: row;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="draw-technics-box">
+            <label>Styl</label>
+            <div class="draw-technics">
+                <button id="drawButton">Tužka</button>
+                <button id="textButton">Text</button>
+                <button id="moveButton">Přesun objektů</button>
+            </div>
+            <div class="draw-technics">
+                <button id="lineButton">Rovná čára</button>
+                <button id="rubberButton">Guma</button>
+            </div>
+        </div>
+        <div class="draw-technics-box">
+            <label>Tloušťka ohraničení</label>
+            <select id="widthPicker">
+            </select>
+            <label>Průhlednost</label>
+            <select id="alphaPicker">
+            </select>
+        </div>
+        <div class="draw-technics-box">
+            <label>Typ textu</label>
+            <select id="fontType">
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Arial">Arial</option>
+            </select>
+            <label>Velikost textu</label>
+            <select id="fontSize">
+            </select>
+        </div>
+        <div class="draw-technics-box">
+            <label>Tvary</label>
+            <div class="draw-technics">
+                <button id="rect">Obdelník</button>
+                <button id="circle">Kruh</button>
+            </div>
+        </div>
+        <div class="draw-technics-box">
+            <div class="draw-technics">
+                <label class="label">Barva čar a ohraničení</label>
+                <input type="color" id="strokeColor" />
+            </div>
+            <div class="draw-technics">
+                <div id="fillColorBlock">
+                    <label class="label">Barva výplně</label>
+                    <input type="color" id="fillColor" />
+                </div>
+                <label class="label">Bez výplně</label>
+                <input type="checkbox" id="fillNoneCheckbox" />
+            </div>
+        </div>
+        <div class="draw-technics-box">
+            <button id="importPhotoButton">Vložit foto</button>
+            <button id="exportPhotoButton">Exportovat img</button>
+        </div>
+    </header>
+    <div class="draw-place" id="drawPlace">
+        <canvas>
+
+        </canvas>
+    </div>
+
+    <footer></footer>
+
+
+    <script>
+        var canvas = document.querySelector("canvas");
+        var helpCanvas = document.createElement("canvas");
+        var widthPicker = document.getElementById("widthPicker");
+        var alphaPicker = document.getElementById("alphaPicker");
+        var drawButton = document.getElementById("drawButton");
+        var line = document.getElementById("lineButton");
+        var rectButton = document.getElementById("rect");
+        var circleButton = document.getElementById("circle");
+        var rubber = document.getElementById("rubberButton");
+        var ctx = canvas.getContext("2d");
+        var helpCtx = helpCanvas.getContext("2d");
+        var drawedObjects = new Array();
+        var mouseDown = false;
+        var fillColor = document.getElementById("fillColor");
+        var strokeColor = document.getElementById("strokeColor");
+        var buttons = document.querySelectorAll("button");
+        var fillNoneCheck = document.getElementById("fillNoneCheckbox");
+        var textButton = document.getElementById("textButton");
+        var fontType = document.getElementById("fontType");
+        var fontSize = document.getElementById("fontSize");
+        var importPhotoButton = document.getElementById("importPhotoButton");
+        var exportPhotoButton = document.getElementById("exportPhotoButton");
+        var moveButton = document.getElementById("moveButton");
+        var moving = false;
+        var movingObject = null;
+        var movingObjectIndex = -1;
+        var type = "move";
+        moveButton.classList.add("selected");
+
+        var startingMouseX = 0;
+        var startingMouseY = 0;
+        var lastKnownX = 0;
+        var lastKnownY = 0;
+        var textInput = "";
+        var creatingText = false;
+        var photoUploaded = true;
+        var lastOperations = new Array();
+        init();
+
+        function init() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - document.querySelector("header").offsetHeight - document.querySelector("footer").offsetHeight;
+            ctx.lineWidth = 1;
+            helpCanvas.width = canvas.width;
+            helpCanvas.height = canvas.height;
+            ctx.strokeColor = fillColor.value;
+            ctx.fillColor = fillColor.value;
+            ctx.lineCap = "round";
+            for (var x = 1; x <= 50; x++) {
+                var option1 = document.createElement("option");
+                var option2 = document.createElement("option");
+                option1.setAttribute("value", x.toString());
+                option1.innerText = x.toString();
+                option2.setAttribute("value", x.toString());
+                option2.innerText = x.toString();
+                widthPicker.appendChild(option1);
+                fontSize.appendChild(option2);
+            }
+            for (var x = 0; x <= 100; x += 10) {
+                var option = document.createElement("option");
+                option.setAttribute("value", ((100 - x) / 100).toString());
+                option.innerText = x.toString() + "%";
+                alphaPicker.appendChild(option);
+            }
+            fontSize.selectedIndex = 19;
+            ctx.font = "20px Times New Roman";
+        }
+
+        /*window.addEventListener("resize", function(e){
+            var newCanvas = document.createElement("canvas");
+            var newctx = newCanvas.getContext("2d");
+            newCanvas.style.width ='100%';
+            newCanvas.style.height='100%';
+            newCanvas.width  = canvas.offsetWidth;
+            newCanvas.height = canvas.offsetHeight;
+            newctx.drawImage(canvas, 0, 0);
+
+            canvas.style.width ='100%';
+            canvas.style.height='100%';
+            canvas.width  = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            ctx.drawImage(newCanvas, 0, 0);
+        });*/
+        var saveImg = function (type, startX, startY, img, width, height, globalAlpha) {
+            var newObject = {
+                "type": type,
+                "startX": startX,
+                "startY": startY,
+                "img": img,
+                "width": width,
+                "height": height,
+                "globalAlpha": globalAlpha,
+            }
+            drawedObjects.push(newObject);
+        }
+        var saveText = function (type, startX, startY, fillColor, strokeColor, lineWidth, globalAlpha, text, fontStyle, width, height) {
+            var newObject = {
+                "type": type,
+                "startX": startX,
+                "startY": startY,
+                "strokeColor": strokeColor,
+                "fillColor": fillColor,
+                "lineWidth": lineWidth,
+                "globalAlpha": globalAlpha,
+                "text": text,
+                "fontStyle": fontStyle,
+                "width": width,
+                "height": height,
+            }
+            drawedObjects.push(newObject);
+        }
+        var saveLine = function (type, startX, startY, endX, endY, strokeColor, lineWidth, globalAlpha, cap, filter) {
+            var newObject = {
+                "type": type,
+                "startX": startX,
+                "startY": startY,
+                "endX": endX,
+                "endY": endY,
+                "strokeColor": strokeColor,
+                "fillColor": fillColor,
+                "lineWidth": lineWidth,
+                "globalAlpha": globalAlpha,
+                "filter": filter,
+                "cap": cap,
+            }
+            drawedObjects.push(newObject);
+        }
+        var saveRect = function (type, startX, startY, fillColor, strokeColor, lineWidth, width, height, globalAlpha) {
+            var newObject = {
+                "type": type,
+                "startX": startX,
+                "startY": startY,
+                "strokeColor": strokeColor,
+                "fillColor": fillColor,
+                "lineWidth": lineWidth,
+                "width": width,
+                "height": height,
+                "globalAlpha": globalAlpha,
+            }
+            drawedObjects.push(newObject);
+        }
+        var saveCircle = function (type, startX, startY, fillColor, strokeColor, lineWidth, r, globalAlpha) {
+            var newObject = {
+                "type": type,
+                "startX": startX,
+                "startY": startY,
+                "strokeColor": strokeColor,
+                "fillColor": fillColor,
+                "lineWidth": lineWidth,
+                "r": r,
+                "globalAlpha": globalAlpha,
+            }
+            drawedObjects.push(newObject);
+        }
+        var startLine = function (type, startX, startY, strokeColor, lineWidth, cap, filter, globalAlpha) {
+            var newObject = {
+                "type": type,
+                "startX": startX,
+                "startY": startY,
+                "strokeColor": strokeColor,
+                "lineWidth": lineWidth,
+                "cap": cap,
+                "filter": filter,
+                "globalAlpha": globalAlpha,
+                "nextParts": new Array(),
+                "endX": -1,
+                "endY": -1,
+            }
+            drawedObjects.push(newObject);
+        }
+
+        var continueLine = function (actualX, actualY) {
+            var point = {
+                "x": actualX,
+                "y": actualY
+            }
+            drawedObjects[drawedObjects.length - 1].nextParts.push(point);
+        }
+        var endLine = function (endX, endY) {
+            drawedObjects[drawedObjects.length - 1].endX = endX;
+            drawedObjects[drawedObjects.length - 1].endY = endY;
+        }
+
+        function prepareForTextCreate(e, width) {
+            startingMouseX = e.offsetX;
+            startingMouseY = e.offsetY;
+            var lastStroke = ctx.strokeStyle;
+            var lastWidth = ctx.lineWidth;
+            var lastAlpha = ctx.globalAlpha;
+            ctx.globalAlpha = 1;
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "black";
+            ctx.beginPath();
+            ctx.moveTo(startingMouseX, startingMouseY);
+            ctx.lineTo(startingMouseX + width, startingMouseY);
+            ctx.stroke();
+            ctx.strokeStyle = lastStroke;
+            ctx.globalAlpha = lastAlpha;
+            ctx.lineWidth = lastWidth;
+            creatingText = true;
+            textInput = "";
+        }
+
+        drawPlace.addEventListener("click", function (e) {
+            if (type === "text") {
+                if (!creatingText) {
+                    prepareForTextCreate(e, 50);
+                    helpCtx.clearRect(0, 0, helpCanvas.width, helpCanvas.height);
+                    helpCtx.drawImage(canvas, 0, 0);
+                }
+                else {
+                    var metrics = ctx.measureText(textInput);
+                    saveText(type, startingMouseX, startingMouseY - 2, ctx.fillStyle, ctx.strokeStyle, ctx.lineWidth, ctx.globalAlpha, textInput, ctx.font, metrics.width, parseInt(ctx.font));
+                    redrawCanvas();
+                    creatingText = false;
+                }
+            }
+        });
+
+        drawPlace.addEventListener("mousedown", function (e) {
+            if (type === "text") {
+            }
+            else if (photoUploaded) {
+                var img = drawedObjects[drawedObjects.length - 1];
+                if (e.offsetX > img.startX + img.width || e.offsetY > img.startY + img.height) {
+                    photoUploaded = false;
+                }
+                else {
+                    startingMouseX = e.offsetX;
+                    startingMouseY = e.offsetY;
+                    mouseDown = true;
+                }
+
+            }
+            else {
+                ctx.moveTo(e.offsetX, e.offsetY);
+                ctx.beginPath();
+                helpCtx.clearRect(0, 0, helpCanvas.width, helpCanvas.height);
+                helpCtx.drawImage(canvas, 0, 0);
+                mouseDown = true;
+                startingMouseX = e.offsetX;
+                startingMouseY = e.offsetY;
+                if (type === "draw") {
+                    startLine(type, startingMouseX, startingMouseY, ctx.strokeStyle, ctx.lineWidth, ctx.lineCap, ctx.filter, ctx.globalAlpha);
+                }
+                if (type === "move") {
+                    movingObject = getObjectByCoordinates(e);
+                    if (movingObject === null) {
+                        mouseDown = false;
+                    }
+                    else {
+                        moving = true;
+                    }
+                }
+            }
+        });
+        drawPlace.addEventListener("mouseup", function (e) {
+            if (mouseDown) {
+                if (type === "text") {
+
+                }
+                else {
+                    if (moving) {
+                        ctx.beginPath();
+                        moveObject(movingObject, e, true);
+                        moving = false;
+                        movingObject = null;
+                        ctx.closePath();
+                        redrawCanvas();
+                        mouseDown = false;
+                        new Audio("sound.wav").play();
+                        
+                    }
+                    else {
+                        endDraw(e);
+                    }
+
+                }
+            }
+        });
+
+        function redrawWhileCreating() {
+            var lastAlpha = ctx.globalAlpha;
+            ctx.globalAlpha = 1;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(helpCanvas, 0, 0);
+            ctx.globalAlpha = lastAlpha;
+        }
+        drawPlace.addEventListener("mousemove", function (e) {
+            if (mouseDown) {
+                redrawWhileCreating();
+                if (moving) {
+                    ctx.beginPath();
+                    moveObject(movingObject, e, false);
+                    ctx.closePath();
+                }
+                if (photoUploaded) {
+                    var img = drawedObjects[drawedObjects.length - 1];
+                    var newX = img.startX + (e.offsetX - startingMouseX);
+                    var newY = img.startY + (e.offsetY - startingMouseY);
+                    ctx.drawImage(img.img, newX, newY, img.width, img.height);
+                }
+                if (type === "rect") {
+                    ctx.beginPath();
+                    var x = (startingMouseX < e.offsetX) ? startingMouseX : e.offsetX;
+                    var y = (startingMouseY < e.offsetY) ? startingMouseY : e.offsetY;
+                    var width = Math.abs(startingMouseX - e.offsetX);
+                    var height = Math.abs(startingMouseY - e.offsetY);
+                    ctx.rect(x, y, width, height);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+                else if (type === "circle") {
+                    ctx.beginPath();
+                    var r = Math.sqrt(Math.pow((Math.abs(startingMouseX - e.offsetX)), 2) + Math.pow((Math.abs(startingMouseY - e.offsetY)), 2));
+                    ctx.arc(startingMouseX, startingMouseY, r, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+                else if (type === "draw") {
+                    continueLine(e.offsetX, e.offsetY);
+                    ctx.lineTo(e.offsetX, e.offsetY);
+                    ctx.stroke();
+                }
+                else if (type === "line") {
+                    ctx.beginPath();
+                    ctx.moveTo(startingMouseX, startingMouseY);
+                    ctx.lineTo(e.offsetX, e.offsetY);
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+            }
+        });
+
+        function moveObject(object, e, save) {
+            var lastStrokeColor = ctx.strokeStyle;
+            var lastFillColor = ctx.fillStyle;
+            var lastFilter = ctx.filter;
+            var lastLineWidth = ctx.lineWidth;
+            var lastCap = ctx.lineCap;
+            var lastGlobalAlpha = ctx.globalAlpha;
+            var lastFont = ctx.font;
+            var diffX = e.offsetX - startingMouseX;
+            var diffY = e.offsetY - startingMouseY;
+            var lastX = object.startX;
+            var lastY = object.startY;
+            ctx.strokeStyle = object.strokeColor;
+            ctx.lineWidth = object.lineWidth;
+            ctx.fillStyle = object.fillColor;
+            ctx.globalAlpha = object.globalAlpha;
+            var newX = lastX + diffX;
+            var newY = lastY + diffY;
+            if (object.type === "rect") {
+                ctx.rect(newX, newY, object.width, object.height);
+                ctx.fill();
+                ctx.stroke();
+            }
+            if (object.type === "img") {
+                ctx.drawImage(object.img, newX, newY, object.width, object.height);
+            }
+            else if (object.type === "circle") {
+                ctx.arc(newX, newY, object.r, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.stroke();
+            }
+            else if (object.type === "text") {
+                ctx.strokeText(object.text, newX, newY - 2);
+                ctx.fillText(object.text, newX, newY - 2);
+            }
+            if (save) {
+                object.startX = newX;
+                object.startY = newY;
+                drawedObjects.splice(movingObjectIndex, 1);
+                drawedObjects.push(object);
+            }
+            ctx.font = lastFont;
+            ctx.globalAlpha = lastGlobalAlpha;
+            ctx.strokeStyle = lastStrokeColor;
+            ctx.fillStyle = lastFillColor;
+            ctx.strokeStyle = lastStrokeColor;
+            ctx.lineWidth = lastLineWidth;
+            ctx.lineCap = lastCap;
+        }
+
+        drawPlace.addEventListener("mouseleave", function (e) {
+            if (creatingText) {
+                var metrics = ctx.measureText(textInput);
+                saveText(type, startingMouseX, startingMouseY - 2, ctx.fillStyle, ctx.strokeStyle, ctx.lineWidth, ctx.globalAlpha, textInput, ctx.font, metrics.width, parseInt(ctx.font));
+                redrawCanvas();
+                creatingText = false;
+                new Audio("sound.wav").play();
+            }
+            if (mouseDown) {
+                if (moving) {
+                    ctx.beginPath();
+                    moveObject(movingObject, e, true);
+                    moving = false;
+                    movingObject = null;
+                    ctx.closePath();
+                    redrawCanvas();
+                    mouseDown = false;
+                    new Audio("sound.wav").play();
+                }
+                if (!creatingText) {
+                    endDraw(e);
+                }
+
+            }
+        });
+
+        function endDraw(e) {
+            if (photoUploaded) {
+                var img = drawedObjects[drawedObjects.length - 1];
+                var newX = img.startX + (e.offsetX - startingMouseX);
+                var newY = img.startY + (e.offsetY - startingMouseY);
+                img.startX = newX;
+                img.startY = newY;
+                drawedObjects[drawedObjects.length - 1] = img;
+                photoUploaded = false;
+            }
+            if (type === "circle") {
+                var r = Math.sqrt(Math.pow((Math.abs(startingMouseX - e.offsetX)), 2) + Math.pow((Math.abs(startingMouseY - e.offsetY)), 2));
+                ctx.arc(startingMouseX, startingMouseY, r, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.stroke();
+                saveCircle(type, startingMouseX, startingMouseY, ctx.fillStyle, ctx.strokeStyle, ctx.lineWidth, r, ctx.globalAlpha);
+            }
+            else if (type === "rect") {
+                var x = (startingMouseX < e.offsetX) ? startingMouseX : e.offsetX;
+                var y = (startingMouseY < e.offsetY) ? startingMouseY : e.offsetY;
+                var width = Math.abs(startingMouseX - e.offsetX);
+                var height = Math.abs(startingMouseY - e.offsetY);
+                ctx.rect(x, y, width, height);
+                ctx.fill();
+                ctx.stroke();
+                saveRect(type, x, y, ctx.fillStyle, ctx.strokeStyle, ctx.lineWidth, width, height, ctx.globalAlpha);
+            }
+            else if (type === "draw") {
+                endLine(e.offsetX, e.offsetY);
+            }
+            else if (type === "line") {
+                ctx.beginPath();
+                ctx.moveTo(startingMouseX, startingMouseY);
+                ctx.lineTo(e.offsetX, e.offsetY);
+                ctx.stroke();
+                ctx.closePath();
+                saveLine(type, startingMouseX, startingMouseY, e.offsetX, e.offsetY, ctx.strokeStyle, ctx.lineWidth, ctx.globalAlpha, ctx.lineCap, ctx.filter);
+            }
+            ctx.closePath();
+            new Audio("sound.wav").play();
+            redrawCanvas();
+            mouseDown = false;
+        }
+
+        function redrawText() {
+            redrawWhileCreating();
+            ctx.strokeText(textInput, startingMouseX, startingMouseY - 2);
+            ctx.fillText(textInput, startingMouseX, startingMouseY - 2);
+        }
+        function changeFontType() {
+            ctx.font = (fontSize.options.selectedIndex + 1).toString() + "pt " + fontType.options[fontType.options.selectedIndex].value;
+        }
+        fontSize.addEventListener("change", function (e) {
+            changeFontType();
+        });
+        fontType.addEventListener("change", function (e) {
+            changeFontType();
+        });
+        widthPicker.addEventListener("change", function (e) {
+            ctx.lineWidth = widthPicker.options.selectedIndex + 1;
+        });
+        alphaPicker.addEventListener("change", function (e) {
+            ctx.globalAlpha = alphaPicker.options[alphaPicker.options.selectedIndex].value;
+        });
+        fillColor.addEventListener("change", function (e) {
+            ctx.fillStyle = fillColor.value;
+        });
+        strokeColor.addEventListener("change", function (e) {
+            if (ctx.strokeStyle === "#ffffff" && type === "draw") {
+                unselectButtons();
+                drawButton.classList.add("selected");
+            }
+            ctx.strokeStyle = strokeColor.value;
+        });
+        drawButton.addEventListener("click", function (e) {
+            unselectButtons();
+            drawButton.classList.add("selected");
+            type = "draw";
+            if (ctx.strokeStyle === "#ffffff") {
+                ctx.strokeStyle = "#000000";
+                strokeColor.value = ctx.strokeStyle;
+            }
+        });
+        window.addEventListener("keyup", function (e) {
+            if (type === "text") {
+                if (creatingText) {
+                    if (e.keyCode > 31 && e.keyCode < 127) {
+                        textInput += e.key;
+                    }
+                    if (e.keyCode == 8) {
+                        if (textInput.length > 0) {
+                            textInput = textInput.substring(0, textInput.length - 1);
+                        }
+                    }
+                    redrawText();
+                }
+            }
+        });
+        line.addEventListener("click", function (e) {
+            type = "line";
+            unselectButtons();
+            if (ctx.strokeStyle === "#ffffff") {
+                ctx.strokeStyle = "#000000";
+                strokeColor.value = ctx.strokeStyle;
+            }
+            line.classList.add("selected");
+        });
+        moveButton.addEventListener("click", function (e) {
+            type = "move";
+            unselectButtons();
+            moveButton.classList.add("selected");
+        });
+        textButton.addEventListener("click", function (e) {
+            type = "text";
+            unselectButtons();
+            if (ctx.strokeStyle === "#ffffff") {
+                ctx.strokeStyle = "#000000";
+                strokeColor.value = ctx.strokeStyle;
+            }
+            textButton.classList.add("selected");
+        });
+        rectButton.addEventListener("click", function (e) {
+            unselectButtons();
+            rect.classList.add("selected");
+            type = "rect";
+        });
+        circleButton.addEventListener("click", function (e) {
+            unselectButtons();
+            circleButton.classList.add("selected");
+            type = "circle";
+        });
+        rubber.addEventListener("click", function (e) {
+            unselectButtons();
+            rubber.classList.add("selected");
+            type = "draw";
+            strokeColor.value = "#ffffff";
+            ctx.strokeStyle = strokeColor.value;
+        });
+        importPhotoButton.addEventListener("click", function (e) {
+            unselectButtons();
+            type = "photo";
+            var input = document.createElement("input");
+            input.setAttribute("type", "file");
+            input.setAttribute("accept", "image/*");
+            input.addEventListener("change", function (e) {
+                if (this.files && this.files[0]) {
+                    var FR = new FileReader();
+                    FR.onload = function (e) {
+                        var img = new Image();
+                        img.addEventListener("load", function () {
+                            showImg(img);
+                        });
+                        img.src = e.target.result;
+                    };
+                    FR.readAsDataURL(this.files[0]);
+                }
+            });
+            input.click();
+        });
+
+        function showImg(img) {
+            helpCtx.clearRect(0, 0, helpCanvas.width, helpCanvas.height);
+            helpCtx.drawImage(canvas, 0, 0);
+            if (img.width < canvas.width && img.height < canvas.height) {
+                ctx.drawImage(img, 0, 0);
+            }
+            else {
+                var ratioWidth = img.width / canvas.width;
+                var imgRatio = img.height / img.width;
+                if (ratioWidth > 1) {
+                    img.width = canvas.width;
+                    img.height = img.width * imgRatio;
+                }
+                if (img.height > canvas.height) {
+                    img.height = canvas.height;
+                    img.width = img.height / imgRatio;
+                }
+                ctx.drawImage(img, 0, 0, img.width, img.height);
+
+            }
+            saveImg("img", 0, 0, img, img.width, img.height, ctx.globalAlpha);
+            photoUploaded = true;
+
+        };
+        exportPhotoButton.addEventListener("click", function (e) {
+            var MIME_TYPE = "image/jpg";
+            var imgURL = canvas.toDataURL(MIME_TYPE);
+            var dlLink = document.createElement('a');
+            dlLink.download = "export";
+            dlLink.href = imgURL;
+            dlLink.dataset.downloadurl = [MIME_TYPE, dlLink.download, dlLink.href].join(':');
+            document.body.appendChild(dlLink);
+            dlLink.click();
+            document.body.removeChild(dlLink);
+        });
+        fillNoneCheck.addEventListener("change", function (e) {
+            if (fillNoneCheck.checked) {
+                document.getElementById("fillColorBlock").style.display = "none";
+                ctx.fillStyle = "rgba(0, 0, 0, 0)";
+            }
+            else {
+                document.getElementById("fillColorBlock").style.display = "block";
+                ctx.fillStyle = fillColor.value;
+            }
+
+        });
+
+        function unselectButtons() {
+            if (photoUploaded) {
+                photoUploaded = false;
+            }
+            buttons.forEach(element => {
+                element.classList.remove("selected");
+            });
+        }
+
+        function getObjectByCoordinates(e) {
+            var x = e.offsetX;
+            var y = e.offsetY;
+            for (var z = drawedObjects.length - 1; z >= 0; z--) {
+                var object = drawedObjects[z];
+                if (object.type === "rect" || object.type === "img") {
+                    if (x > object.startX && x < object.startX + object.width) {
+                        if (y > object.startY && y < object.startY + object.height) {
+                            movingObjectIndex = z;
+                            return object;
+                        }
+                    }
+                }
+                else if (object.type === "circle") {
+                    var length = Math.sqrt(Math.pow((x - object.startX), 2) + Math.pow((y - object.startY), 2));
+                    if (length < object.r) {
+                        movingObjectIndex = z;
+                        return object;
+                    }
+                }
+                else if (object.type === "text") {
+                    if (x > object.startX && x < object.startX + object.width) {
+                        if (y < object.startY && y > object.startY - object.height) {
+                            movingObjectIndex = z;
+                            return object;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function redrawCanvas() {
+            var lastStrokeColor = ctx.strokeStyle;
+            var lastFillColor = ctx.fillStyle;
+            var lastFilter = ctx.filter;
+            var lastLineWidth = ctx.lineWidth;
+            var lastCap = ctx.lineCap;
+            var lastGlobalAlpha = ctx.globalAlpha;
+            var lastFont = ctx.font;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            helpCtx.clearRect(0, 0, helpCanvas.width, helpCanvas.height);
+            for (var x = 0; x < drawedObjects.length; x++) {
+                ctx.globalAlpha = drawedObjects[x].globalAlpha;
+                helpCtx.clearRect(0, 0, helpCanvas.width, helpCanvas.height);
+                helpCtx.drawImage(canvas, 0, 0);
+                ctx.beginPath();
+                if (drawedObjects[x].type === "draw") {
+                    drawLine(drawedObjects[x]);
+                }
+                else if (drawedObjects[x].type === "line") {
+                    drawStrictLine(drawedObjects[x]);
+                }
+                else if (drawedObjects[x].type === "rect") {
+                    drawRect(drawedObjects[x]);
+                }
+                else if (drawedObjects[x].type === "circle") {
+                    drawCircle(drawedObjects[x]);
+                }
+                else if (drawedObjects[x].type === "text") {
+                    drawText(drawedObjects[x]);
+                }
+                else if (drawedObjects[x].type === "img") {
+                    JSON.stringify(drawedObjects[x].img);
+                    drawImg(drawedObjects[x]);
+                }
+                ctx.closePath();
+            }
+            ctx.font = lastFont;
+            ctx.globalAlpha = lastGlobalAlpha;
+            ctx.strokeStyle = lastStrokeColor;
+            ctx.fillStyle = lastFillColor;
+            ctx.strokeStyle = lastStrokeColor;
+            ctx.lineWidth = lastLineWidth;
+            ctx.lineCap = lastCap;
+        }
+
+        function drawImg(img) {
+            ctx.drawImage(img.img, img.startX, img.startY, img.width, img.height);
+        }
+
+        function drawText(text) {
+            ctx.strokeStyle = text.strokeColor;
+            ctx.lineWidth = text.lineWidth;
+            ctx.fillStyle = text.fillColor;
+            ctx.font = text.fontStyle;
+            ctx.strokeText(text.text, text.startX, text.startY);
+            ctx.fillText(text.text, text.startX, text.startY);
+        }
+
+        function drawCircle(circle) {
+            ctx.strokeStyle = circle.strokeColor;
+            ctx.lineWidth = circle.lineWidth;
+            ctx.fillStyle = circle.fillColor;
+            ctx.arc(circle.startX, circle.startY, circle.r, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        function drawRect(rect) {
+            ctx.strokeStyle = rect.strokeColor;
+            ctx.lineWidth = rect.lineWidth;
+            ctx.fillStyle = rect.fillColor;
+            ctx.rect(rect.startX, rect.startY, rect.width, rect.height);
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        function drawLine(line) {
+            ctx.strokeStyle = line.strokeColor;
+            ctx.lineWidth = line.lineWidth;
+            ctx.lineCap = line.cap;
+            ctx.filter = line.filter;
+            ctx.moveTo(line.startX, line.startY);
+            line.nextParts.forEach(element => {
+                redrawWhileCreating();
+                ctx.lineTo(element.x, element.y);
+                ctx.stroke();
+            });
+            ctx.lineTo(line.endX, line.endY);
+            ctx.stroke();
+        }
+
+        function drawStrictLine(line) {
+            ctx.strokeStyle = line.strokeColor;
+            ctx.lineWidth = line.lineWidth;
+            ctx.lineCap = line.cap;
+            ctx.filter = line.filter;
+            ctx.moveTo(line.startX, line.startY);
+            ctx.lineTo(line.endX, line.endY);
+            ctx.stroke();
+        }
+    </script>
+</body>
+
+</html>
