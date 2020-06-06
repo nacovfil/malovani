@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="cs" manifest="site.manifest">
 
 <head>
     <meta charset="utf-8">
@@ -713,12 +713,6 @@
             type = "draw";
             strokeColor.value = "#ffffff";
             ctx.strokeStyle = strokeColor.value;
-        });
-        window.addEventListener("online", function(e){
-            document.getElementById("connectionStateLabel").innerText = "Jste online";
-        });
-        window.addEventListener("offline", function(e){
-            document.getElementById("connectionStateLabel").innerText = "Jste offline, ale nebojte, apka funguje dál :)";
         });
         importPhotoButton.addEventListener("click", function (e) {
             unselectButtons();
