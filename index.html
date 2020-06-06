@@ -66,10 +66,11 @@
         #fillNoneCheckbox {
             transition: all 2s;
         }
+
         #fillNoneCheckbox:checked {
             margin-left: 30px;
         }
-        
+
 
         .menu-button {
             margin: 3px;
@@ -94,7 +95,7 @@
 </head>
 
 <body>
-    <header>
+    <header id="header">
         <div class="draw-technics-box">
             <label>Styl</label>
             <div class="draw-technics">
@@ -199,10 +200,14 @@
         var lastKnownY = 0;
         var textInput = "";
         var creatingText = false;
-        var photoUploaded = true;
+        var photoUploaded = false;
         var lastOperations = new Array();
+        var lastDrawWidth = drawPlace.width;
+        var lastDrawHeight = drawPlace.height;
+        var header = document.getElementById("header");
         init();
 
+        //Inicializace canvasu a některých hodnot
         function init() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight - document.querySelector("header").offsetHeight - document.querySelector("footer").offsetHeight;
@@ -232,21 +237,39 @@
             ctx.font = "20px Times New Roman";
         }
 
-        /*window.addEventListener("resize", function(e){
-            var newCanvas = document.createElement("canvas");
-            var newctx = newCanvas.getContext("2d");
-            newCanvas.style.width ='100%';
-            newCanvas.style.height='100%';
-            newCanvas.width  = canvas.offsetWidth;
-            newCanvas.height = canvas.offsetHeight;
-            newctx.drawImage(canvas, 0, 0);
+        window.addEventListener("resize", function (e) {
+            init();
+            redrawCanvas();
+        });
+        
+        //Funkce na ukládání operací, nakonec pro ně nemám využití
+        function saveMoveOperation(lastIndex, lastX, lastY) {
+            var newObject = {
+                "type": "move",
+                "lastIndex": lastIndex,
+                "lastX": lastX,
+                "lastY": lastY
+            }
+            lastOperations.push(newObject);
+            history.pushState("move", null, null);
+        }
+        function saveDeleteOperation(object) {
+            var newOperation = {
+                "type": "delete",
+                "object": object
+            }
+            lastOperations.push(newOperation);
+            history.pushState("delete", null, null);
+        }
+        function saveDrawOpretion() {
+            var newOperation = {
+                type: "draw"
+            }
+            lastOperations.push(newOperation);
+            history.pushState("draw", null, null);
+        }
 
-            canvas.style.width ='100%';
-            canvas.style.height='100%';
-            canvas.width  = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            ctx.drawImage(newCanvas, 0, 0);
-        });*/
+        //Funkce pro ukládání vytvořených prvků v canvasu
         var saveImg = function (type, startX, startY, img, width, height, globalAlpha) {
             var newObject = {
                 "type": type,
@@ -258,6 +281,7 @@
                 "globalAlpha": globalAlpha,
             }
             drawedObjects.push(newObject);
+            saveDrawOpretion();
         }
         var saveText = function (type, startX, startY, fillColor, strokeColor, lineWidth, globalAlpha, text, fontStyle, width, height) {
             var newObject = {
@@ -274,6 +298,7 @@
                 "height": height,
             }
             drawedObjects.push(newObject);
+            saveDrawOpretion();
         }
         var saveLine = function (type, startX, startY, endX, endY, strokeColor, lineWidth, globalAlpha, cap, filter) {
             var newObject = {
@@ -290,6 +315,7 @@
                 "cap": cap,
             }
             drawedObjects.push(newObject);
+            saveDrawOpretion();
         }
         var saveRect = function (type, startX, startY, fillColor, strokeColor, lineWidth, width, height, globalAlpha) {
             var newObject = {
@@ -304,6 +330,7 @@
                 "globalAlpha": globalAlpha,
             }
             drawedObjects.push(newObject);
+            saveDrawOpretion();
         }
         var saveCircle = function (type, startX, startY, fillColor, strokeColor, lineWidth, r, globalAlpha) {
             var newObject = {
@@ -317,6 +344,7 @@
                 "globalAlpha": globalAlpha,
             }
             drawedObjects.push(newObject);
+            saveDrawOpretion();
         }
         var startLine = function (type, startX, startY, strokeColor, lineWidth, cap, filter, globalAlpha) {
             var newObject = {
@@ -333,6 +361,7 @@
                 "endY": -1,
             }
             drawedObjects.push(newObject);
+            saveDrawOpretion();
         }
 
         var continueLine = function (actualX, actualY) {
@@ -435,7 +464,7 @@
                         redrawCanvas();
                         mouseDown = false;
                         new Audio("sound.wav").play();
-                        
+
                     }
                     else {
                         endDraw(e);
@@ -536,6 +565,7 @@
                 ctx.fillText(object.text, newX, newY - 2);
             }
             if (save) {
+                saveMoveOperation(movingObjectIndex, object.startX, object.startY);
                 object.startX = newX;
                 object.startY = newY;
                 drawedObjects.splice(movingObjectIndex, 1);
@@ -576,6 +606,7 @@
             }
         });
 
+        //ukončení nákresu nějakého prvku a uložení
         function endDraw(e) {
             if (photoUploaded) {
                 var img = drawedObjects[drawedObjects.length - 1];
@@ -628,6 +659,7 @@
         function changeFontType() {
             ctx.font = (fontSize.options.selectedIndex + 1).toString() + "pt " + fontType.options[fontType.options.selectedIndex].value;
         }
+        //Listenery na tlačítka a události
         fontSize.addEventListener("change", function (e) {
             changeFontType();
         });
@@ -660,6 +692,17 @@
             }
         });
         window.addEventListener("keyup", function (e) {
+            if(type === "move") {
+                if(e.keyCode === 46) {
+                    if(!mouseDown) {
+                        if(movingObjectIndex != -1) {
+                            saveDeleteOperation(drawedObjects[drawedObjects.length - 1]);
+                            drawedObjects.splice(drawedObjects.length -1, 1);
+                            redrawCanvas();
+                        }
+                    }
+                }
+            }
             if (type === "text") {
                 if (creatingText) {
                     if (e.keyCode > 31 && e.keyCode < 127) {
@@ -714,6 +757,34 @@
             strokeColor.value = "#ffffff";
             ctx.strokeStyle = strokeColor.value;
         });
+        window.addEventListener("dragover", function (e) {
+            e.preventDefault();
+        });
+        //Drag and drop fotky
+        window.addEventListener("drop", function (e) {
+            e.preventDefault();
+            var files = e.dataTransfer.files;
+            if (files.length > 1) {
+
+            }
+            else {
+                var f = files[0];
+                if (f.type.indexOf("image") != -1) {
+                    unselectButtons();
+                    type = "photo";
+                    var fr = new FileReader();
+                    fr.addEventListener("load", e => {
+                        var img = new Image();
+                        img.addEventListener("load", function (e) {
+                            showImg(img);
+                        });
+                        img.src = fr.result;
+                    })
+                    fr.readAsDataURL(f);
+                }
+            }
+        })
+        //Import photo
         importPhotoButton.addEventListener("click", function (e) {
             unselectButtons();
             type = "photo";
@@ -792,6 +863,7 @@
             });
         }
 
+        //Vrátí objekt na který uživatel kliknul
         function getObjectByCoordinates(e) {
             var x = e.offsetX;
             var y = e.offsetY;
@@ -824,6 +896,7 @@
             return null;
         }
 
+        //Překreslení canvasu
         function redrawCanvas() {
             var lastStrokeColor = ctx.strokeStyle;
             var lastFillColor = ctx.fillStyle;
@@ -899,7 +972,6 @@
             ctx.fill();
             ctx.stroke();
         }
-
         function drawLine(line) {
             ctx.strokeStyle = line.strokeColor;
             ctx.lineWidth = line.lineWidth;
@@ -914,7 +986,6 @@
             ctx.lineTo(line.endX, line.endY);
             ctx.stroke();
         }
-
         function drawStrictLine(line) {
             ctx.strokeStyle = line.strokeColor;
             ctx.lineWidth = line.lineWidth;
@@ -926,5 +997,4 @@
         }
     </script>
 </body>
-
 </html>
