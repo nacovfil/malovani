@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="cs">
 
 <head>
     <meta charset="utf-8">
@@ -64,7 +64,7 @@
         }
 
         #fillNoneCheckbox {
-            transition: all 3s;
+            transition: all 2s;
         }
         #fillNoneCheckbox:checked {
             margin-left: 30px;
@@ -149,6 +149,9 @@
         <div class="draw-technics-box">
             <button id="importPhotoButton">Vložit foto</button>
             <button id="exportPhotoButton">Exportovat img</button>
+        </div>
+        <div class="draw-technics-box">
+            <label class="label" id="connectionStateLabel"></label>
         </div>
     </header>
     <div class="draw-place" id="drawPlace">
@@ -710,6 +713,12 @@
             type = "draw";
             strokeColor.value = "#ffffff";
             ctx.strokeStyle = strokeColor.value;
+        });
+        window.addEventListener("online", function(e){
+            document.getElementById("connectionStateLabel").innerText = "Jste online";
+        });
+        window.addEventListener("offline", function(e){
+            document.getElementById("connectionStateLabel").innerText = "Jste offline, ale nebojte, apka funguje dál :)";
         });
         importPhotoButton.addEventListener("click", function (e) {
             unselectButtons();
